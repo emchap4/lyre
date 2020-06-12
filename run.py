@@ -5,8 +5,12 @@ app = Flask(__name__)
 Bootstrap(app)
 
 @app.route('/')
-def test():
-    return render_template('test.html')
+def home():
+    return render_template('home.html')
+
+@app.route('/unity')
+def unity_player():
+    return render_template('unity.html')
 
 
 if __name__ == "__main__":
