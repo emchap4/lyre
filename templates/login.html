@@ -1,0 +1,27 @@
+
+{% extends "bootstrap/base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+  <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='login.css') }}">
+
+  <body class="text-center">
+    <form method="POST" class="form-signin">
+        <img class="mb-4" src="{{ url_for('static', filename='lyre_logo.png') }}" height="100">
+  <h1 class="h3 mb-3 font-weight-normal">Please sign in</h1>
+  <label for="inputName" class="sr-only">Username</label>
+  <input name="username" type="name" id="inputName" class="form-control" placeholder="Username" required autofocus>
+  <label for="inputPassword" class="sr-only">Password</label>
+  <input name="password" type="password" id="inputPassword" class="form-control" placeholder="Password" required>
+  <button class="btn btn-lg btn-primary btn-block green-btn" type="submit">Sign in</button>
+  <!-- Change this obviously -->
+  <p> Username: 'James', Password: 'password' </p>
+  <br>
+</form>
+</body>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% endblock %}
