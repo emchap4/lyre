@@ -1,3 +1,2 @@
 flask
 flask_bootstrap4
-flask_sqlalchemy
