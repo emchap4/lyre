@@ -19,3 +19,10 @@ Run Flask application
 ```bash
 python3 run.py
 ```
+
+----
+## Recompile Elm into JS
+
+```bash
+elm make src/Main.elm --output static/game.js
+```
