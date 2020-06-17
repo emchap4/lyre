@@ -4433,7 +4433,7 @@ var $author$project$Main$view = function (model) {
 				_List_Nil,
 				_List_fromArray(
 					[
-						$elm$html$Html$text('Here is some LARGE TEXT')
+						$elm$html$Html$text('Here is some LARGE TEXT2')
 					])),
 				A2(
 				$elm$html$Html$p,
