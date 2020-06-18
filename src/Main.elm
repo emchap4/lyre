@@ -12,7 +12,6 @@ import Random
 import Array
 --import Collage
 --import Element
-import Svg.Attributes exposing (x)
 
 
 allWordList : List Word
@@ -23,9 +22,27 @@ allWordList =
 
     ]
 
+filterAllWordList : List Word -> Bool -> List Word -> List Word
+filterAllWordList initialwl allowRepeats blacklistwl =
+    List.filter (isNotInBlacklistedWords blacklistwl) initialwl
 
 
+isNotInBlacklistedWords : List Word -> Word -> Bool
+isNotInBlacklistedWords blacklistwl w =
+    not (List.member w blacklistwl)
 
+            {--let 
+                fws = filterAllWordList xs
+            in
+                if x == fws then
+                    x
+                else
+                    fws--}
+
+
+filteredWords : List Word
+filteredWords =
+    []
 
 
 -- MAIN
@@ -37,7 +54,7 @@ main =
         , view = view
         , update = update
         , subscriptions = subscriptions
-    }
+        }
 
 
 -- INIT
@@ -66,6 +83,8 @@ modelCfg =
     , blockCols = 5
     , blockRows = 3
     , blocksDistFromTopY = 420
+    , fallingBlockSpawnHeight = -500
+    , fallingBlockSpeed = -1
     }
 
 type alias Positioned a =
@@ -114,6 +133,30 @@ block : Float -> Float -> Int -> Int -> Float -> Float -> Word -> String -> Bloc
 block x y gx gy w h word color =
     { x = x, y = y, gridX = gx, gridY = gy, w = w, h = h, word = word, color = color}
 
+fallingBlock : Float -> Float -> Float -> Int -> Int -> Float -> Float -> Word -> String -> FallingBlock
+fallingBlock x y vy gx gy w h word color =
+    { x = x, y = y, gridX = gx, gridY = gy, w = w, h = h, word = word, color = color, vy = vy}
+
+fallingBlockRow : Float -> List FallingBlock
+fallingBlockRow viewportX = 
+    let
+        xOff =
+            toFloat (-modelCfg.blockCols // 2 |> toFloat |> ceiling)
+                * modelCfg.blockDistX + viewportX - modelCfg.blockWidth / 2
+    in
+        List.map
+            (\x ->
+                fallingBlock (modelCfg.blockDistX * x + xOff)
+                    modelCfg.fallingBlockSpawnHeight
+                    modelCfg.fallingBlockSpeed
+                    (round x)
+                    (round modelCfg.fallingBlockSpawnHeight)
+                    modelCfg.blockWidth
+                    modelCfg.blockHeight
+                    (Noun "" "")
+                    "purple"
+            ) ((List.range 0 (modelCfg.blockCols - 1)) |> List.map toFloat)
+
 blockRow : Float -> Float -> List Block
 blockRow viewportX y=
     let
@@ -125,7 +168,8 @@ blockRow viewportX y=
             (\x ->
                 block (modelCfg.blockDistX * x + xOff)
                     y
-                    0 0
+                    (round x)
+                    (round ((y - modelCfg.blocksDistFromTopY) / modelCfg.blockDistY))
                     modelCfg.blockWidth
                     modelCfg.blockHeight
                     (Noun "" "")
@@ -139,7 +183,7 @@ add a b =
 type alias Model =
     { state : State
     , blocks : List Block
-    --, fallingBlocks : Maybe (List FallingBlock)
+    , fallingBlocks : List FallingBlock
     , columnStates : List ColumnState
     , windowDimensions : Browser.Dom.Viewport
     }
@@ -148,10 +192,11 @@ defaultModel : Model
 defaultModel =
     { state = Play
     , blocks = List.map (((*) modelCfg.blockDistY))
-            ((List.range 0 (modelCfg.blockRows - 1)) |> List.map toFloat) |> List.map (add modelCfg.blocksDistFromTopY)
+            ((List.range 0 (modelCfg.blockRows - 1)) |> List.map toFloat) 
+            |> List.map (add modelCfg.blocksDistFromTopY)
             |> List.map (blockRow 640)
             |> List.concat
-    --, fallingBlocks = Nothing
+    , fallingBlocks = fallingBlockRow 640
     , columnStates = List.repeat modelCfg.blockCols AllActive
     , windowDimensions =    { scene = 
                                 { width = 640, height = 480 }
@@ -170,6 +215,9 @@ type Msg
     | FindRandomWord Block
     | RandomWord (Int, Block)
     | ColorIn Block
+    | ColorInF FallingBlock
+    | SpawnMore FallingBlock
+    | OnFallingBlockClick FallingBlock
 
 
 --generatorWordIndexBlock : Block -> Random.Generator (Int, Block)
@@ -189,10 +237,17 @@ update msg model =
             (model, Cmd.none)
 
         ViewportSize newSize ->
-            ( { model | windowDimensions = newSize}, Cmd.none)
+            ( { model | windowDimensions = newSize }, Cmd.none)
 
         OnAnimationFrame dt ->
-            (model, Cmd.none)
+            ( { model | fallingBlocks =
+                List.map
+                    ( \x ->
+                        { x | y = x.y - x.vy }
+                    )
+                    model.fallingBlocks
+                }
+            , Cmd.none)
         
         ColorIn b ->
             ( { model | blocks =
@@ -208,6 +263,41 @@ update msg model =
             , Cmd.none
             )
         
+        OnFallingBlockClick fb ->
+            ( model
+                |> removeFallingBlock fb
+                |> spawnNewFallingBlockRow
+            , Cmd.none    
+            )
+
+        ColorInF fb ->
+            ( { model | fallingBlocks =
+                List.filter 
+                    ( \x -> 
+                        x.x /= fb.x && 
+                        x.y > fb.y + modelCfg.fallingBlockSpeed
+                    )
+                    model.fallingBlocks
+                }
+            , Cmd.none
+            )
+
+            {-
+            ( { model | fallingBlocks =
+                List.map 
+                    ( \x -> 
+                        if x.x == fb.x then
+                            { x | color = "green" }
+                        else
+                            x
+                    )
+                    model.fallingBlocks
+                }
+            , Cmd.none
+            )
+            
+            -}
+
         FindRandomWord b ->
             ( model
             , Random.generate RandomWord (randomWordListIndex b)
@@ -234,17 +324,55 @@ update msg model =
                     }
                 , Cmd.none
                 )
-
         
+        SpawnMore fb ->
+            ( { model | fallingBlocks =
+                List.append (fallingBlockRow 640) model.fallingBlocks
+                }
+            , Cmd.none
+            )
+        
+
+
+removeFallingBlock : FallingBlock -> Model -> Model
+removeFallingBlock fb model =
+    { model | fallingBlocks =
+                List.filter 
+                    ( \x -> not (
+                        x.x == fb.x && 
+                        x.y > fb.y + modelCfg.fallingBlockSpeed &&
+                        x.y < fb.y - modelCfg.fallingBlockSpeed * 2
+                        )
+                    )
+                    model.fallingBlocks
+    }
+
+spawnNewFallingBlockRow : Model -> Model
+spawnNewFallingBlockRow model =
+    { model | fallingBlocks =
+                List.append (fallingBlockRow 640) model.fallingBlocks
+    }
 
 -- VIEW
 
 view : Model -> Html Msg
 view model =
-    displayBlocks model
+    div []
+        [
+            displayAll model
+        ]
+    
+displayAll : Model -> Html Msg
+displayAll model =
+    displayFullScreen model.windowDimensions 
+                (List.append 
+                    (displayFallingBlocks model)
+                    (displayBlocks model)
+                    
+                )
 
 
-displayFullScreen : Browser.Dom.Viewport -> List (Html Msg) -> Html Msg
+displayFullScreen : Browser.Dom.Viewport -> List ( Html Msg ) -> Html Msg
 displayFullScreen v content =
     let
         -- to prevent scrolling down when user hits space bar
@@ -266,7 +394,36 @@ displayFullScreen v content =
             ]
             content
 
-displayBlocks : Model -> Html Msg
+displayFallingBlocks : Model -> List (Html Msg)
+displayFallingBlocks ({fallingBlocks} as model) = 
+    let
+        fallingBlockRects =
+            List.map (\fb ->
+                        Svg.g
+                            []
+                            [ Svg.rect
+                                [ SvgA.width (String.fromFloat fb.w)
+                                , SvgA.height (String.fromFloat fb.h)
+                                , SvgA.x (String.fromFloat fb.x)
+                                , SvgA.y (String.fromFloat fb.y)
+                                , SvgA.rx (String.fromFloat modelCfg.blockCornerRounding)
+                                , SvgA.fill fb.color
+                                , SvgE.onClick (OnFallingBlockClick fb)
+                                ]
+                                []
+                            , Svg.text_
+                                [ SvgA.x (String.fromFloat (fb.x + 20))
+                                , SvgA.y (String.fromFloat (fb.y + 26))
+                                , SvgA.fontSize "30"
+                                , SvgA.fill "white"
+                                ]
+                                [ Svg.text ( getWordName fb.word) ]
+                            ]
+                        ) fallingBlocks
+    in 
+        fallingBlockRects
+
+displayBlocks : Model -> List (Html Msg)
 displayBlocks ({ blocks } as model) = 
     let 
         blockRects =
@@ -289,12 +446,12 @@ displayBlocks ({ blocks } as model) =
                                 , SvgA.fontSize "30"
                                 , SvgA.fill "white"
                                 ]
-                                [Svg.text ( getWordName b.word)]
+                                [ Svg.text ( getWordName b.word) ]
                             
                             ]
                         ) blocks
     in
-        displayFullScreen model.windowDimensions blockRects
+        blockRects
 
 
 getWordName : Word -> String
