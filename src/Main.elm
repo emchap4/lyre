@@ -12,14 +12,18 @@ import Random
 import Array
 --import Collage
 --import Element
+import Update.Extra
 
 
 allWordList : List Word
 allWordList = 
-    [ Noun "test1" "test1"
-    , Verb "test2" "test2"
-    , Noun "test3" "test3"
-
+    [ Noun "you" "test1"
+    , Verb "bean" "test2"
+    , Noun "man" "test3"
+    , Noun "never" ""
+    , Noun "gonna" ""
+    , Noun "give" ""
+    , Noun "up" ""
     ]
 
 filterAllWordList : List Word -> Bool -> List Word -> List Word
@@ -61,7 +65,18 @@ main =
 
 init : () -> (Model, Cmd Msg)
 init _ =
-    ( defaultModel, getViewportCommand )
+    ( defaultModel
+    , Cmd.batch 
+        [ getViewportCommand
+        , Cmd.batch (List.map (\b -> Random.generate RandomWord (randomWordListIndex b)) 
+                        (List.map (((*) modelCfg.blockDistY))
+                        ((List.range 0 (modelCfg.blockRows - 1)) |> List.map toFloat) 
+                        |> List.map (add modelCfg.blocksDistFromTopY)
+                        |> List.map (blockRow 640)
+                        |> List.concat)
+            )
+        ]
+    )
 
 getViewportCommand : Cmd Msg
 getViewportCommand = 
@@ -228,6 +243,9 @@ randomWordListIndex : Block -> Random.Generator (Int, Block)
 randomWordListIndex b =
     Random.pair (Random.int 0 (List.length allWordList - 1)) (Random.constant b)
 
+run : Msg -> Cmd Msg
+run m =
+    Task.perform (always m) (Task.succeed ())
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -247,7 +265,43 @@ update msg model =
                     )
                     model.fallingBlocks
                 }
-            , Cmd.none)
+                
+                , 
+                
+                Cmd.batch 
+                (List.map 
+                    (\fb -> 
+                        if (fb.y > 250) then
+                            run (ColorInF fb)
+                        else
+                            Cmd.none
+                    )
+                model.fallingBlocks)
+            )
+
+            {-
+            |> update 
+                    (List.map 
+                        (\fb -> 
+                            if (fb.y < 250) then
+                                ColorInF fb
+                            else
+                                NoOp
+                        )
+                    model.fallingBlocks)
+            -}
+            --250
+
+              {-Cmd.batch 
+                (List.map 
+                    (\fb -> 
+                        if (fb.y < 250) then
+                            ColorInF fb
+                        else
+                            Cmd.none
+                    )
+                model.fallingBlocks)
+            ) -}
         
         ColorIn b ->
             ( { model | blocks =
@@ -273,9 +327,11 @@ update msg model =
         ColorInF fb ->
             ( { model | fallingBlocks =
                 List.filter 
-                    ( \x -> 
-                        x.x /= fb.x && 
-                        x.y > fb.y + modelCfg.fallingBlockSpeed
+                    ( \x -> not (
+                        x.x == fb.x && 
+                        x.y > fb.y + modelCfg.fallingBlockSpeed &&
+                        x.y < fb.y - modelCfg.fallingBlockSpeed * 2
+                        )
                     )
                     model.fallingBlocks
                 }
@@ -336,16 +392,19 @@ update msg model =
 
 removeFallingBlock : FallingBlock -> Model -> Model
 removeFallingBlock fb model =
-    { model | fallingBlocks =
-                List.filter 
-                    ( \x -> not (
-                        x.x == fb.x && 
-                        x.y > fb.y + modelCfg.fallingBlockSpeed &&
-                        x.y < fb.y - modelCfg.fallingBlockSpeed * 2
+    let
+        isSameBlock x =
+            x.x == fb.x && 
+            x.y > fb.y + modelCfg.fallingBlockSpeed &&
+            x.y < fb.y - modelCfg.fallingBlockSpeed * 2
+            
+    in
+        { model | fallingBlocks =
+                    List.filter 
+                        ( \x -> not (isSameBlock x)
                         )
-                    )
-                    model.fallingBlocks
-    }
+                        model.fallingBlocks
+        }
 
 spawnNewFallingBlockRow : Model -> Model
 spawnNewFallingBlockRow model =
