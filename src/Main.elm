@@ -1,18 +1,32 @@
 module Main exposing (main)
 
 import Html exposing (..)
-import Html.Attributes as HtmlA
 import Browser
 import Browser.Dom
 import Browser.Events
-import Platform exposing (Task)
 import Task
 import Svg
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
+import Random
+import Array
 --import Collage
 --import Element
-import Browser.Dom exposing (Viewport)
+import Svg.Attributes exposing (x)
+
+
+allWordList : List Word
+allWordList = 
+    [ Noun "test1" "test1"
+    , Verb "test2" "test2"
+    , Noun "test3" "test3"
+
+    ]
+
+
+
+
+
 
 -- MAIN
 
@@ -44,12 +58,14 @@ modelCfg =
     , gameHeight = 400
     , halfWidth = 300.0
     , halfHeight = 200.0
-    , blockWidth = 50
-    , blockHeight = 20
-    , blockDistX = 80
-    , blockDistY = 33
+    , blockWidth = 220
+    , blockHeight = 35
+    , blockCornerRounding = 5
+    , blockDistX = 240
+    , blockDistY = 55
     , blockCols = 5
     , blockRows = 3
+    , blocksDistFromTopY = 420
     }
 
 type alias Positioned a =
@@ -98,25 +114,27 @@ block : Float -> Float -> Int -> Int -> Float -> Float -> Word -> String -> Bloc
 block x y gx gy w h word color =
     { x = x, y = y, gridX = gx, gridY = gy, w = w, h = h, word = word, color = color}
 
-blockRow : Float -> List Block
-blockRow y =
+blockRow : Float -> Float -> List Block
+blockRow viewportX y=
     let
         xOff =
             toFloat (-modelCfg.blockCols // 2 |> toFloat |> ceiling)
-                * modelCfg.blockDistX
+                * modelCfg.blockDistX + viewportX - modelCfg.blockWidth / 2
     in
         List.map
             (\x ->
-                block (modelCfg.blockDistX * x )--+ xOff)
+                block (modelCfg.blockDistX * x + xOff)
                     y
                     0 0
                     modelCfg.blockWidth
                     modelCfg.blockHeight
-                    (Noun "test" "test2")
+                    (Noun "" "")
                     "purple"
             ) ((List.range 0 (modelCfg.blockCols - 1)) |> List.map toFloat)
 
-
+add : number -> number -> number
+add a b =
+    a + b
 
 type alias Model =
     { state : State
@@ -129,9 +147,9 @@ type alias Model =
 defaultModel : Model
 defaultModel =
     { state = Play
-    , blocks = List.map ((*) modelCfg.blockDistY)
-            ((List.range 0 (modelCfg.blockRows - 1)) |> List.map toFloat)
-            |> List.map blockRow
+    , blocks = List.map (((*) modelCfg.blockDistY))
+            ((List.range 0 (modelCfg.blockRows - 1)) |> List.map toFloat) |> List.map (add modelCfg.blocksDistFromTopY)
+            |> List.map (blockRow 640)
             |> List.concat
     --, fallingBlocks = Nothing
     , columnStates = List.repeat modelCfg.blockCols AllActive
@@ -149,7 +167,19 @@ type Msg
     = NoOp
     | ViewportSize Browser.Dom.Viewport
     | OnAnimationFrame Float
+    | FindRandomWord Block
+    | RandomWord (Int, Block)
     | ColorIn Block
+
+
+--generatorWordIndexBlock : Block -> Random.Generator (Int, Block)
+--generatorWordIndexBlock b =
+--    (Random.int 0 (List.length allWordList - 1), b)
+
+randomWordListIndex : Block -> Random.Generator (Int, Block)
+randomWordListIndex b =
+    Random.pair (Random.int 0 (List.length allWordList - 1)) (Random.constant b)
+
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -177,6 +207,35 @@ update msg model =
                 }
             , Cmd.none
             )
+        
+        FindRandomWord b ->
+            ( model
+            , Random.generate RandomWord (randomWordListIndex b)
+            )
+
+        RandomWord (rn, b) ->
+            let 
+                selectedWord = Array.fromList allWordList
+                    |> Array.get rn
+            in
+                ( { model | blocks =
+                    List.map 
+                        ( \x -> 
+                            if x.x == b.x && x.y == b.y then
+                                case selectedWord of
+                                    Just word ->
+                                        { x | word = word }--Noun "test3" "test" }
+                                    Nothing ->
+                                        x
+                            else
+                                x
+                        )
+                        model.blocks
+                    }
+                , Cmd.none
+                )
+
+        
 
 -- VIEW
 
@@ -190,7 +249,7 @@ displayFullScreen v content =
     let
         -- to prevent scrolling down when user hits space bar
         height_ =
-            v.viewport.height - 20
+            v.viewport.height - 30
 
         width =
             v.viewport.width
@@ -200,9 +259,10 @@ displayFullScreen v content =
                 (height_ / modelCfg.gameHeight)
     in
         Svg.svg
-            [ SvgA.width (String.fromFloat width)
+            [ SvgA.viewBox "0 0 1275 570"--("0 0" ++ String.fromFloat width ++ " " ++ String.fromFloat height_)--"0 0 640 480"--("0 0 " ++ String.fromInt modelCfg.gameWidth ++ " " ++ String.fromInt modelCfg.gameHeight)
+            , SvgA.preserveAspectRatio "xMidYMax"
+            , SvgA.width (String.fromFloat width)
             , SvgA.height (String.fromFloat height_)
-            , SvgA.scale (String.fromFloat gameScale)
             ]
             content
 
@@ -210,24 +270,40 @@ displayBlocks : Model -> Html Msg
 displayBlocks ({ blocks } as model) = 
     let 
         blockRects =
-            List.map (renderBlocks model) blocks
+            List.map (\b -> 
+                        Svg.g
+                            []
+                            [ Svg.rect   
+                                [ SvgA.width (String.fromFloat b.w)
+                                , SvgA.height (String.fromFloat b.h)
+                                , SvgA.x (String.fromFloat b.x)
+                                , SvgA.y (String.fromFloat b.y)
+                                , SvgA.rx (String.fromFloat modelCfg.blockCornerRounding)
+                                , SvgA.fill b.color
+                                , SvgE.onClick (FindRandomWord b) --SvgE.onClick (ColorIn b)
+                                ]
+                                []
+                            , Svg.text_
+                                [ SvgA.x (String.fromFloat (b.x + 20))
+                                , SvgA.y (String.fromFloat (b.y + 26))
+                                , SvgA.fontSize "30"
+                                , SvgA.fill "white"
+                                ]
+                                [Svg.text ( getWordName b.word)]
+                            
+                            ]
+                        ) blocks
     in
         displayFullScreen model.windowDimensions blockRects
 
-renderBlocks : Model -> Block -> Html Msg
-renderBlocks model b =
-    Svg.rect   
-        [ SvgA.width (String.fromFloat b.w)
-        , SvgA.height (String.fromFloat b.h)
-        , SvgA.x (String.fromFloat b.x)
-        , SvgA.y (String.fromFloat b.y)
-        , SvgA.fill b.color
-        , SvgE.onClick (ColorIn b)
-        ]
-        []
 
-
-
+getWordName : Word -> String
+getWordName word =
+    case word of
+        Noun name _ ->
+            name
+        Verb name _ ->
+            name
 
 
 -- SUBSCRIPTIONS
@@ -241,73 +317,3 @@ subscriptions model =
             , viewport = { x = 0, y = 0, width = toFloat w, height = toFloat h}
             })
         ]
-
-
-
-{--
-
-view : Model -> Html Msg
-view model =
-    displayBlocks model |> Element.layout []
-
-
-displayFullScreen : Browser.Dom.Viewport -> Collage.Collage Msg -> Element.Element Msg
-displayFullScreen { width, height } content =
-    let
-        -- to prevent scrolling down when user hits space bar
-        height_ =
-            height - 20
-
-        gameScale =
-            Basics.min (toFloat width / modelCfg.gameWidth)
-                (toFloat height_ / modelCfg.gameHeight)
-    in
-        collage width height_ [ content |> Collage.scale gameScale ]
-
-displayBlocks : Model -> Element.Element Msg
-displayBlocks ({ blocks } as model) = 
-    let 
-        blockRects =
-            Collage.group 
-                <| List.map (\b -> Collage.rectangle b.w b.h |> make b) blocks
-    in
-        displayFullScreen model.windowDimensions blockRects
-
-make : Positioned a -> Collage.Shape -> Collage.Collage Msg
-make obj shape = 
-    shape |> Collage.shift (obj.x, obj.y)
-
-
-
-
-
-
-
-
-
-
-
-
-
-List.map (\b -> Svg.rect
-                                    [ SvgA.width (String.fromFloat b.w)
-                                    , SvgA.height (String.fromFloat b.h)
-                                    , SvgA.x (String.fromFloat b.x)
-                                    , SvgA.y (String.fromFloat b.y)
-                                    , 
-                                    , SvgE.onClick ColorIn
-                                    ]
-                                    []) blocks
-
-
-
-List.map (\b -> Html.div
-                                    [ HtmlA.width (round b.w)
-                                    , HtmlA.height (round b.h)
-                                    , HtmlA.style "left" (String.fromFloat b.x)
-                                    , HtmlA.style "left" (String.fromFloat b.y)
-                                    , HtmlA.style "fill" (b.color)
-                                    , SvgE.onClick ColorIn
-                                    ]
-                                    []) blocks
---}
