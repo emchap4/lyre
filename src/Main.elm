@@ -6,11 +6,12 @@ import Browser.Dom
 import Browser.Events
 import Html exposing (..)
 import Random
+import Random.Array
 import Svg
 import Svg.Attributes as SvgA
 import Svg.Events as SvgE
 import Task
-
+import Time
 
 
 --import Collage
@@ -49,51 +50,75 @@ while condition initialState body =
     else 
         while condition (body initialState) body
 
-filterAllWordList : List Word -> Int -> Int -> Bool -> List Word -> List Word
-filterAllWordList initialwl len rn allowRepeats blacklistwl =
+filterAllWordList : List Word -> Int -> Random.Seed -> Bool -> List Word -> List Word
+filterAllWordList initialwl len seed allowRepeats blacklistwl =
     let
         lengthIsNotLen =
             \{n} -> len /= List.length n
         initialFilteredList =
             List.filter (isNotInBlacklistedWords blacklistwl) initialwl
 
+        randomIndex : (Int, Random.Seed)
+        randomIndex =
+            (Random.step (Random.int 0 (List.length initialFilteredList)) seed)
+
         returnwl :
             { n : List Word
             , iterations : Int
             , filteredList : List Word
+            , nextWordUp : Maybe Word
+            , newSeed : Random.Seed
             }
         returnwl =
             { n = []
             , iterations = 0 
             , filteredList = initialFilteredList
-            }
-
-        nextWordUp : Maybe Word
-        nextWordUp =
-            Array.fromList returnwl.filteredList
-                |> Array.get (rn - returnwl.iterations)
+            , nextWordUp = 
+                Array.fromList initialFilteredList
+                    |> Array.get (Tuple.first randomIndex)
+            , newSeed = Tuple.second randomIndex
+            } --recursively 
 
         result =
             while lengthIsNotLen returnwl 
-                ( \n ->
+                ( \{n, iterations, filteredList, nextWordUp, newSeed} ->
                     case nextWordUp of
                         Just word ->
                             if not allowRepeats then
-                                { returnwl 
-                                    | n = 
-                                        word :: returnwl.n
-                                    , iterations = returnwl.iterations + 1
-                                    , filteredList = List.filter 
-                                                        (\w -> w /= word)
-                                                        returnwl.filteredList
+                                { n = word :: n
+                                , iterations = iterations + 1
+                                , filteredList = List.filter 
+                                                    (\w -> w /= word)
+                                                    filteredList
+                                , nextWordUp = Array.fromList filteredList
+                                                |> Array.get 
+                                                    (Tuple.first 
+                                                        (Random.step (Random.int 0 (List.length filteredList - 1)) newSeed)
+                                                    )
+                                , newSeed = Tuple.second (Random.step (Random.int 0 (List.length filteredList - 1)) newSeed) 
                                 }
                             else 
-                                { returnwl 
-                                    | n = word :: returnwl.n
-                                    , iterations = returnwl.iterations + 1
+                                { n = word :: n
+                                , iterations = iterations + 1
+                                , filteredList = filteredList
+                                , nextWordUp = Array.fromList filteredList
+                                                |> Array.get 
+                                                    (Tuple.first 
+                                                        (Random.step (Random.int 0 (List.length filteredList - 1)) newSeed)
+                                                    )
+                                , newSeed = Tuple.second (Random.step (Random.int 0 (List.length filteredList - 1)) newSeed) 
                                 }
                         Nothing ->
-                            { returnwl | iterations = returnwl.iterations + 1 }
+                            { n = (Noun "boo2" "") :: n
+                            , iterations = iterations + 1
+                            , filteredList = filteredList
+                            , nextWordUp = Array.fromList filteredList
+                                                |> Array.get 
+                                                    (Tuple.first 
+                                                        (Random.step (Random.int 0 (List.length filteredList)) newSeed)
+                                                    )
+                                , newSeed = Tuple.second (Random.step (Random.int 0 (List.length filteredList)) newSeed) 
+                            }
                 )
 
     in
@@ -102,16 +127,74 @@ filterAllWordList initialwl len rn allowRepeats blacklistwl =
 
 
 
+{--
+filterAllWordList : List Word -> Int -> Int -> Bool -> List Word -> List Word
+filterAllWordList initialwl len rn allowRepeats blacklistwl =
+    let
+        lengthIsNotLen =
+            \{n} -> len /= List.length n
+        initialFilteredList =
+            List.filter (isNotInBlacklistedWords blacklistwl) initialwl
+        returnwl :
+            { n : List Word
+            , iterations : Int
+            , filteredList : List Word
+            , nextWordUp : Maybe Word
+            }
+        returnwl =
+            { n = []
+            , iterations = 0 
+            , filteredList = initialFilteredList
+            , nextWordUp = 
+                Array.fromList initialFilteredList
+                    |> Array.get (rn - 0)
+            } --recursively 
 
+        -- nextWordUp : Maybe Word
+        -- nextWordUp =
+        --     Array.fromList returnwl.filteredList
+        --         |> Array.get (rn - returnwl.iterations)
 
-    -- let 
-    --     initialfilteredList =
-    --         List.filter (isNotInBlacklistedWords blacklistwl) initialwl
-    -- in
-    --     if not (len == length initialfilteredList) then
-    --         initialfilteredList
-    --     else
+        result =
+            while lengthIsNotLen returnwl 
+                ( \{n, iterations, filteredList, nextWordUp} ->
+                    case nextWordUp of
+                        Just word ->
+                            if not allowRepeats then
+                                { n = word :: n
+                                , iterations = iterations + 1
+                                , filteredList = List.filter 
+                                                    (\w -> w /= word)
+                                                    filteredList
+                                , nextWordUp = Array.fromList filteredList
+                                                |> Array.get (rn - iterations)
+                                }
+                            else 
+                                { n = word :: n
+                                , iterations = iterations + 1
+                                , filteredList = filteredList
+                                , nextWordUp = Array.fromList filteredList
+                                                |> Array.get (rn - iterations)
+                                }
+                        Nothing ->
+                            { n = (Noun "boo" "") :: n
+                            , iterations = iterations + 1
+                            , filteredList = filteredList
+                            , nextWordUp = Array.fromList filteredList
+                                                |> Array.get (rn - iterations)
+                            }
+                )
 
+    in
+        result.n
+--}
+
+flipFlopAddSubtract : Bool -> (Int -> Int -> Int)
+flipFlopAddSubtract toAdd =
+    if toAdd then
+        (+)
+    else
+        (-)
 
 
 isNotInBlacklistedWords : List Word -> Word -> Bool
@@ -157,15 +240,15 @@ init _ =
     ( defaultModel
     , Cmd.batch
         [ getViewportCommand
-        , Cmd.batch
-            (List.map (\b -> Random.generate RandomWord (randomWordListIndex b))
-                (List.map ((*) modelCfg.blockDistY)
-                    (List.range 0 (modelCfg.blockRows - 1) |> List.map toFloat)
-                    |> List.map (add modelCfg.blocksDistFromTopY)
-                    |> List.map (blockRow 640)
-                    |> List.concat
-                )
-            )
+        -- , Cmd.batch
+        --     (List.map (\b -> Random.generate RandomWord (randomWordListIndex b))
+        --         (List.map ((*) modelCfg.blockDistY)
+        --             (List.range 0 (modelCfg.blockRows - 1) |> List.map toFloat)
+        --             |> List.map (add modelCfg.blocksDistFromTopY)
+        --             |> List.map (blockRow 640)
+        --             |> List.concat
+        --         )
+        --     )
         ]
     )
 
@@ -204,17 +287,14 @@ type alias Positioned a =
         , y : Float
     }
 
-
 type alias GridPositioned a =
     { a
         | gridX : Int
         , gridY : Int
     }
 
-
 type alias Moving a =
     { a | vy : Float }
-
 
 type alias Sized a =
     { a
@@ -222,29 +302,31 @@ type alias Sized a =
         , h : Float
     }
 
-
 type alias Colored a =
     { a | color : String }
 
-
 type alias Labeled a =
-    { a | word : Word }
+    { a | word : Maybe Word }
 
+type alias WithAnswers a =
+    { a | answers : List Word }
+
+type alias WithRandomWords a =
+    { a | randomWords : List Word}
+
+type alias WithClosestFallingBlock a =
+    { a | closestFallingBlock : Maybe FallingBlock }
+
+type alias OccupiesColumns a =
+    { a | occupiedColumns : Int }
 
 type alias Block =
-    Labeled (Colored (Sized (GridPositioned (Positioned {}))))
-
+    WithClosestFallingBlock ( Labeled ( Colored ( Sized ( GridPositioned ( Positioned {} ) ) ) ) )  
 
 type alias FallingBlock =
-    Moving Block
+    Moving ( WithAnswers ( WithRandomWords ( Colored ( OccupiesColumns ( Sized ( GridPositioned ( Positioned {} ) ) ) ) ) ) )
 
-
-
--- Word on a fallingBlock or bottomBlock
-
-
-type
-    Word
+type Word
     -- Noun name declension
     = Noun String String
       -- Verb name tense
@@ -262,15 +344,20 @@ type State
     | Lost
 
 
-block : Float -> Float -> Int -> Int -> Float -> Float -> Word -> String -> Block
-block x y gx gy w h word color =
-    { x = x, y = y, gridX = gx, gridY = gy, w = w, h = h, word = word, color = color }
+block : Float -> Float -> Int -> Int -> Float -> Float -> Maybe Word -> String -> Maybe FallingBlock -> Block
+block x y gx gy w h word color closestFallingBlock =
+    { x = x, y = y, gridX = gx, gridY = gy, w = w, h = h, word = word, color = color, closestFallingBlock = closestFallingBlock }
 
 
-fallingBlock : Float -> Float -> Float -> Int -> Int -> Float -> Float -> Word -> String -> FallingBlock
-fallingBlock x y vy gx gy w h word color =
-    { x = x, y = y, gridX = gx, gridY = gy, w = w, h = h, word = word, color = color, vy = vy }
+fallingBlock : Float -> Float -> Float -> Int -> Int -> Float -> Float -> Int -> String -> List Word -> List Word -> FallingBlock
+fallingBlock x y vy gx gy w h occupiedColumns color answers randomWords =
+    { x = x, y = y, gridX = gx, gridY = gy, w = w, h = h, occupiedColumns = occupiedColumns, color = color, vy = vy, answers = answers, randomWords = randomWords}
 
+--getRandomWordList : Float -> 
+--getRandomWordList rwAmount blacklist
+
+--filterAllWordList initialwl len rn allowRepeats blacklistwl
+--filterAllWordList initialwl len seed allowRepeats blacklistwl
 
 fallingBlockRow : Float -> List FallingBlock
 fallingBlockRow viewportX =
@@ -281,19 +368,26 @@ fallingBlockRow viewportX =
                 + viewportX
                 - modelCfg.blockWidth
                 / 2
+
+        occupiedColumns =
+            (modelCfg.blockWidth + (modelCfg.blockDistX - modelCfg.blockWidth)) / modelCfg.blockDistX
+            --change first blockWidth to local fallingBlock width
     in
     List.map
         (\x ->
-            fallingBlock (modelCfg.blockDistX * x + xOff)
+            fallingBlock 
+                (modelCfg.blockDistX * x + xOff)
                 modelCfg.fallingBlockSpawnHeight
                 modelCfg.fallingBlockSpeed
                 (round x)
                 (round modelCfg.fallingBlockSpawnHeight)
                 modelCfg.blockWidth
                 modelCfg.blockHeight
-                (Noun "" "")
+                (round occupiedColumns)
                 "purple"
-        )
+                [Verb "bean" "test2"] -- Change to be answers
+                (filterAllWordList allWordList (round (modelCfg.blockRows * occupiedColumns)) (Random.initialSeed (round x)) False [Verb "bean" "test2"])
+        ) -- FOR SOME REASON, (ROUND X) RETURNS (MODELCFG.BLOCKCOLS - 1)... it shouldn't, but it does
         (List.range 0 (modelCfg.blockCols - 1) |> List.map toFloat)
 
 
@@ -315,8 +409,9 @@ blockRow viewportX y =
                 (round ((y - modelCfg.blocksDistFromTopY) / modelCfg.blockDistY))
                 modelCfg.blockWidth
                 modelCfg.blockHeight
-                (Noun "" "")
+                (Just (Noun "" ""))
                 "purple"
+                Nothing
         )
         (List.range 0 (modelCfg.blockCols - 1) |> List.map toFloat)
 
@@ -363,8 +458,8 @@ type Msg
     = NoOp
     | ViewportSize Browser.Dom.Viewport
     | OnAnimationFrame Float
-    | FindRandomWord Block
-    | RandomWord ( Int, Block )
+--    | FindRandomWord Block
+--    | RandomWord ( Int, Block )
     | ColorIn Block
     | ColorInF FallingBlock
     | SpawnMore FallingBlock
@@ -381,11 +476,27 @@ randomWordListIndex : Block -> Random.Generator ( Int, Block )
 randomWordListIndex b =
     Random.pair (Random.int 0 (List.length allWordList - 1)) (Random.constant b)
 
---Random.pair (Random.int 0 (List.length (allWordList) - 1)) (Random.constant b)
-
 run : Msg -> Cmd Msg
 run m =
     Task.perform (always m) (Task.succeed ())
+
+
+
+findClosestFallingBlock : Model -> Block -> Maybe FallingBlock
+findClosestFallingBlock model b =
+    let
+        fallingBlocksInColumn : List FallingBlock
+        fallingBlocksInColumn =
+            List.filter 
+                ( \fb -> fb.x >= b.x )--fb.x >= b.x && (fb.x + fb.w) <= b.x )
+                model.fallingBlocks
+    in
+        List.sortBy .y fallingBlocksInColumn |> List.reverse |> List.head
+
+{-
+Array.fromList (filterAllWordList allWordList 21 rn False [])
+                        |> Array.get rn
+                        -}
 
 
 onAnimationFrameModel : Model -> Model
@@ -396,6 +507,19 @@ onAnimationFrameModel model =
                 (\x -> { x | y = x.y - x.vy })
                 model.fallingBlocks
                 |> List.filter (\fb -> fb.y < modelCfg.fallingBlockCutoff)
+        , blocks =
+            List.map
+                (\b -> 
+                    case (findClosestFallingBlock model b) of 
+                        Just fb ->
+                            { b | word = 
+                                Array.fromList (fb.randomWords) 
+                                    |> Array.get (b.gridY + (modelCfg.blockRows * (fb.occupiedColumns - 1)))
+                            }
+                        Nothing ->
+                            { b | word = Just (Noun "boo" "") }
+                )
+                model.blocks
 
         -- Removes the block if it falls below a certain point
     }
@@ -460,16 +584,16 @@ update msg model =
             , Cmd.none
             )
 
-        FindRandomWord b ->
-            ( model
-            , Random.generate RandomWord (randomWordListIndex b)
-            )
+        --FindRandomWord b ->
+        --    ( model
+        --    , Random.generate RandomWord (randomWordListIndex b)
+        --    )
 
-        RandomWord ( rn, b ) ->
+        {-RandomWord ( rn, b ) ->
             let
-                selectedWord =
-                    Array.fromList allWordList--(filterAllWordList allWordList 3 rn False [])
-                        |> Array.get rn
+                selectedWord = --turn to list/array and get the word based on id/increment
+                    Array.fromList (filterAllWordList allWordList 21 rn False [])
+                        |> Array.get rn --List.map it to a List.range so that rn increments 
             in
             ( { model
                 | blocks =
@@ -490,7 +614,7 @@ update msg model =
                         model.blocks
               }
             , Cmd.none
-            )
+            )-}
 
         SpawnMore _ ->
             ( { model
@@ -600,7 +724,7 @@ displayFallingBlocks { fallingBlocks } =
                             , SvgA.fontSize "30"
                             , SvgA.fill "white"
                             ]
-                            [ Svg.text (getWordName fb.word) ]
+                            [] --Svg.text (getWordName fb.word) ]
                         ]
                 )
                 fallingBlocks
@@ -623,7 +747,7 @@ displayBlocks { blocks } =
                             , SvgA.y (String.fromFloat b.y)
                             , SvgA.rx (String.fromFloat modelCfg.blockCornerRounding)
                             , SvgA.fill b.color
-                            , SvgE.onClick (FindRandomWord b) --SvgE.onClick (ColorIn b)
+                            --, SvgE.onClick (FindRandomWord b) --SvgE.onClick (ColorIn b)
                             ]
                             []
                         , Svg.text_
@@ -632,7 +756,16 @@ displayBlocks { blocks } =
                             , SvgA.fontSize "30"
                             , SvgA.fill "white"
                             ]
-                            [ Svg.text (getWordName b.word) ]
+                            [ 
+                                Svg.text 
+                                    (
+                                        case b.word of
+                                            Just word ->
+                                                getWordName word
+                                            Nothing ->
+                                                ""
+                                    )
+                            ]
                         ]
                 )
                 blocks
