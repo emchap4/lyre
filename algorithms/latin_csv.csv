@@ -1,0 +1,33 @@
+Word,Root,Part of Speech,Prefix/Suffix,Ending
+"arx, arcis",arc,Noun,,"-x, cis"
+arcere,arc,Verb,,-ere
+fugere,fug,Verb,,-ere
+fugare,fug,Verb,,-are
+fugatus,fug,Adjective,,-are
+agere,ag,Verb,,-ere
+actus,ag,Adjective,,-ere
+actor,ag,Noun,,-tor
+coactus,ag,Adjective,,-ere
+sal,sal,Noun,,
+mare,mar,Noun,,
+hostes,host,Noun,,
+"lux, lucis",lux,Noun,,"-x, cis"
+lumina,lum,Noun,,
+lumen,lum,Noun,,
+lucere,lux,Verb,,
+dare,dar,Verb,,
+ab,prep,Preposition,ab,
+ad,prep,Preposition,ad,
+cum,prep,Preposition,cum,
+in + acc,prep,Preposition,in,
+in + abl,prep,Preposition,in,
+per,prep,Preposition,per,
+videre,vid,Verb,,
+dicere,dic,Verb,,
+ferre,fer,Verb,,
+ignis,ign,Noun,,
+de,prep,Preposition,de,
+facere,fac,Verb,,-ere
+perfectus,fac,Adjective,per,
+confectus,fac,Adjective,cum,
+factor,fac,Noun,,-tor
