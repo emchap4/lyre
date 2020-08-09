@@ -387,7 +387,7 @@ fallingBlockRow viewportX =
                 "purple"
                 [Verb "bean" "test2"] -- Change to be answers
                 (filterAllWordList allWordList (round (modelCfg.blockRows * occupiedColumns)) (Random.initialSeed (round x)) False [Verb "bean" "test2"])
-        ) -- FOR SOME REASON, (ROUND X) RETURNS (MODELCFG.BLOCKCOLS - 1)... it shouldn't, but it does
+        ) -- FOR SOME REASON, (ROUND X) RETURNS (MODELCFG.BLOCKCOLS - 1)... it shouldn't, but it does... it bay be because Elm only accepts 1 set seed
         (List.range 0 (modelCfg.blockCols - 1) |> List.map toFloat)
 
 
